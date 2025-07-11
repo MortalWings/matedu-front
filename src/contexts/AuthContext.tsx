@@ -28,18 +28,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuthStatus = async () => {
     try {
+      console.log('🔍 AuthContext: Verificando estado de autenticación...');
+      
+      // Debug inicial
+      api.debugAuth();
+      
       const token = localStorage.getItem('token');
+      console.log('🔑 Token en localStorage:', token ? '✅ Encontrado' : '❌ No encontrado');
+      
       if (token) {
+        console.log('🔒 Token (primeros 20 chars):', token.substring(0, 20) + '...');
         api.setToken(token);
+        console.log('✅ Token establecido en API service');
+        
         const currentUser = await api.getCurrentUser();
+        console.log('👤 Usuario obtenido:', currentUser);
         setUser(currentUser);
+        console.log('✅ Usuario establecido en contexto');
+      } else {
+        console.log('❌ No hay token, usuario no autenticado');
       }
     } catch (error) {
-      console.error('Error checking auth status:', error);
-      localStorage.removeItem('token');
-      api.removeToken();
+      console.error('❌ Error checking auth status:', error);
+      console.log('🧹 Limpiando datos de autenticación por error...');
+      
+      // Usar el nuevo método clearToken
+      api.clearToken();
+      setUser(null);
+      
+      // Si es un error de credenciales, mostrar mensaje específico
+      if (error instanceof Error && error.message.includes('credenciales')) {
+        console.error('🔐 Token expirado o inválido, se requiere nuevo login');
+      }
     } finally {
       setLoading(false);
+      console.log('✅ Verificación de autenticación completada');
     }
   };
 
@@ -58,9 +81,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (credentials: LoginData) => {
     try {
       console.log('🔐 AuthContext: Iniciando login...');
-      await api.login(credentials);
-      console.log('✅ AuthContext: Login exitoso, obteniendo usuario...');
+      const loginResponse = await api.login(credentials);
+      console.log('✅ AuthContext: Login exitoso, respuesta:', loginResponse);
       
+      // Verificar que el token esté establecido correctamente
+      const currentToken = api.getToken();
+      console.log('🔑 Token actual en API service:', currentToken ? '✅ Disponible' : '❌ No disponible');
+      
+      console.log('👤 AuthContext: Obteniendo usuario actual...');
       const currentUser = await api.getCurrentUser();
       console.log('✅ AuthContext: Usuario obtenido:', currentUser);
       
@@ -68,6 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('✅ AuthContext: Usuario establecido en contexto');
     } catch (error) {
       console.error('❌ AuthContext: Error en login:', error);
+      // Limpiar cualquier token parcial en caso de error
+      api.removeToken();
+      setUser(null);
       throw error;
     }
   };
@@ -83,8 +114,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    api.removeToken();
+    console.log('🚪 AuthContext: Cerrando sesión...');
+    api.clearToken();
     setUser(null);
+    console.log('✅ Sesión cerrada');
   };
 
   const value = {

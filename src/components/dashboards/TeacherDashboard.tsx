@@ -15,7 +15,7 @@ import {
   FileText,
   Edit
 } from 'lucide-react';
-import { api, Course, User } from '@/lib/api';
+import { api, Course, User, ProfesorEstadisticas } from '@/lib/api';
 
 interface TeacherDashboardProps {
   user: User;
@@ -23,16 +23,47 @@ interface TeacherDashboardProps {
 
 export default function TeacherDashboard({ user }: TeacherDashboardProps) {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [studentsCount, setStudentsCount] = useState(0);
+  const [assignmentsCount, setAssignmentsCount] = useState(0);
+  const [teacherStats, setTeacherStats] = useState<ProfesorEstadisticas | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Obtener cursos del profesor (necesitaremos implementar este endpoint)
-        const teacherCourses = await api.getCourses(); // Por ahora usamos todos los cursos
-        setCourses(teacherCourses.slice(0, 5)); // Simulamos que son cursos del profesor
+        console.log('� TeacherDashboard: Iniciando carga de datos...');
+        
+        // Debug de autenticación antes de hacer peticiones
+        await api.debugAuth();
+        
+        console.log('📚 Obteniendo datos del profesor...');
+        
+        // Obtener datos usando los nuevos endpoints
+        const [teacherCourses, misEstudiantes, misAsignaciones, estadisticas] = await Promise.all([
+          api.getCourses(), // Profesores pueden ver todos los cursos
+          api.getMisEstudiantes(),
+          api.getMisAsignaciones(),
+          api.getProfesorEstadisticas() // Nuevas estadísticas del profesor
+        ]);
+        
+        setCourses(teacherCourses.slice(0, 5)); 
+        setStudentsCount(misEstudiantes.length);
+        setAssignmentsCount(misAsignaciones.length);
+        setTeacherStats(estadisticas);
+        
+        console.log('✅ Datos del profesor cargados exitosamente');
+        console.log('📚 Cursos:', teacherCourses.length);
+        console.log('👥 Estudiantes:', misEstudiantes.length);
+        console.log('📋 Asignaciones:', misAsignaciones.length);
+        console.log('📊 Estadísticas:', estadisticas);
       } catch (error) {
-        console.error('Error fetching teacher data:', error);
+        console.error('❌ Error fetching teacher data:', error);
+        
+        // Si hay error de autenticación, hacer debug adicional
+        if (error instanceof Error && error.message.includes('Not authenticated')) {
+          console.error('🔐 Error de autenticación detectado en TeacherDashboard');
+          await api.debugAuth();
+        }
       } finally {
         setLoading(false);
       }
@@ -65,13 +96,13 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Card className="bg-white border-yellow-200 shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-yellow-900">Cursos Activos</CardTitle>
+            <CardTitle className="text-sm font-medium text-yellow-900">Cursos Creados</CardTitle>
             <BookOpen className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-800">{courses.length}</div>
+            <div className="text-2xl font-bold text-yellow-800">{teacherStats?.cursos_creados || courses.length}</div>
             <p className="text-xs text-yellow-600">
-              En impartición
+              Total creados
             </p>
           </CardContent>
         </Card>
@@ -82,9 +113,9 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
             <Users className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-800">24</div>
+            <div className="text-2xl font-bold text-yellow-800">{teacherStats?.estudiantes_asignados || studentsCount}</div>
             <p className="text-xs text-yellow-600">
-              Total inscritos
+              Total asignados
             </p>
           </CardContent>
         </Card>
@@ -104,13 +135,13 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
 
         <Card className="bg-white border-yellow-200 shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-yellow-900">Evaluaciones</CardTitle>
+            <CardTitle className="text-sm font-medium text-yellow-900">Asignaciones</CardTitle>
             <FileText className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-800">12</div>
+            <div className="text-2xl font-bold text-yellow-800">{assignmentsCount}</div>
             <p className="text-xs text-yellow-600">
-              Pendientes de revisar
+              Cursos asignados
             </p>
           </CardContent>
         </Card>

@@ -13,35 +13,79 @@ import {
   Star,
   Calendar
 } from 'lucide-react';
-import { api, Course, UserStats } from '@/lib/api';
+import { api, UserStats } from '@/lib/api';
 import { User } from '@/lib/api';
+import { CursosAsignadosModal, MiProfesorModal, MisLogrosModal } from '@/components/modals';
 
 interface StudentDashboardProps {
   user: User;
 }
 
+// Interfaz simplificada para cursos en el dashboard del estudiante
+interface StudentCourse {
+  id: number;
+  titulo: string;
+  descripcion: string;
+  nivel_dificultad: string;
+  duracion_estimada?: number;
+  imagen_portada?: string | null;
+  activo?: boolean;
+  fecha_creacion?: string;
+  area_matematica_id?: number;
+  profesor_id?: number;
+  progreso_porcentaje?: number;
+  fecha_inscripcion?: string;
+  fecha_asignacion?: string;
+  fecha_limite?: string;
+  estado?: string;
+}
+
 export default function StudentDashboard({ user }: StudentDashboardProps) {
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<StudentCourse[]>([]);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [userCourses, userStats] = await Promise.all([
-          api.getUserCourses(),
-          api.getUserStats(user.id)
-        ]);
-        setCourses(userCourses);
-        setStats(userStats);
-      } catch (error) {
-        console.error('Error fetching student data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchData = async () => {
+    try {
+      // Usar el nuevo endpoint para obtener cursos asignados por el profesor
+      const [cursosAsignados, userStats] = await Promise.all([
+        api.getCursosAsignados(),
+        api.getUserStats(user.id)
+      ]);
+      
+      // Convertir assignments a courses para mantener compatibilidad
+      const cursosCompatibles: StudentCourse[] = cursosAsignados.map(assignment => ({
+        id: assignment.curso.id,
+        titulo: assignment.curso.titulo,
+        descripcion: assignment.curso.descripcion,
+        nivel_dificultad: assignment.curso.nivel_dificultad,
+        // Valores por defecto para propiedades que pueden no estar presentes
+        duracion_estimada: 30, // Valor por defecto
+        imagen_portada: null,
+        activo: true,
+        fecha_creacion: assignment.fecha_asignacion,
+        area_matematica_id: 1, // Valor por defecto
+        profesor_id: assignment.profesor.id,
+        // Propiedades adicionales de asignación
+        progreso_porcentaje: assignment.progreso_porcentaje,
+        fecha_inscripcion: assignment.fecha_asignacion,
+        fecha_asignacion: assignment.fecha_asignacion,
+        fecha_limite: assignment.fecha_limite,
+        estado: assignment.estado
+      }));
+      
+      setCourses(cursosCompatibles);
+      setStats(userStats);
+    } catch (error) {
+      console.error('Error fetching student data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
 
   if (loading) {
@@ -156,18 +200,22 @@ export default function StudentDashboard({ user }: StudentDashboardProps) {
                   </div>
                 ))}
                 {courses.length > 3 && (
-                  <Button variant="outline" className="w-full border-blue-300 text-blue-700 hover:bg-blue-50">
-                    Ver todos los cursos ({courses.length})
-                  </Button>
+                  <CursosAsignadosModal refreshData={fetchData}>
+                    <Button variant="outline" className="w-full border-blue-300 text-blue-700 hover:bg-blue-50">
+                      Ver todos los cursos ({courses.length})
+                    </Button>
+                  </CursosAsignadosModal>
                 )}
               </div>
             ) : (
               <div className="text-center py-8">
                 <BookOpen className="h-12 w-12 text-blue-400 mx-auto mb-4" />
-                <p className="text-blue-700">No tienes cursos inscritos</p>
-                <Button className="mt-4 bg-blue-600 hover:bg-blue-700">
-                  Explorar Cursos
-                </Button>
+                <p className="text-blue-700">No tienes cursos asignados</p>
+                <CursosAsignadosModal refreshData={fetchData}>
+                  <Button className="mt-4 bg-blue-600 hover:bg-blue-700">
+                    Ver Cursos Asignados
+                  </Button>
+                </CursosAsignadosModal>
               </div>
             )}
           </CardContent>
@@ -226,12 +274,16 @@ export default function StudentDashboard({ user }: StudentDashboardProps) {
               <div className="pt-4 border-t border-blue-200">
                 <h4 className="font-medium text-blue-900 mb-3">Acciones Rápidas</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" size="sm" className="border-blue-300 text-blue-700 hover:bg-blue-50">
-                    Ver Perfil
-                  </Button>
-                  <Button variant="outline" size="sm" className="border-blue-300 text-blue-700 hover:bg-blue-50">
-                    Mis Logros
-                  </Button>
+                  <MiProfesorModal>
+                    <Button variant="outline" size="sm" className="border-blue-300 text-blue-700 hover:bg-blue-50">
+                      Mi Profesor
+                    </Button>
+                  </MiProfesorModal>
+                  <MisLogrosModal userId={user.id}>
+                    <Button variant="outline" size="sm" className="border-blue-300 text-blue-700 hover:bg-blue-50">
+                      Mis Logros
+                    </Button>
+                  </MisLogrosModal>
                 </div>
               </div>
             </div>
